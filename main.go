@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
@@ -21,29 +22,44 @@ var (
 	RotateIPInterval = 5 * time.Second
 
 	// Timeout for each request
-	RequestTimeout = 30 * time.Second
+	RequestTimeout = 10 * time.Second
+
+	NumWorkers = 5
 )
 
 func main() {
-	// Create a new HTTP client with a custom transport
-	client := &http.Client{
-		Transport: &http.Transport{
-			Proxy: http.ProxyURL(parseProxyURL(getRandomProxy())),
-		},
-		Timeout: RequestTimeout,
-	}
+	var wg sync.WaitGroup
+
+	workerChan := make(chan struct{}, NumWorkers)
 
 	// Start scraping loop
 	for {
-		// Perform scraping using the current IP address
-		err := scrapeData(client)
-		if err != nil {
-			log.Println("Scraping error:", err)
-		}
+		workerChan <- struct{}{}
 
-		// Rotate IP address
-		time.Sleep(RotateIPInterval)
-		client.Transport.(*http.Transport).Proxy = http.ProxyURL(parseProxyURL(getRandomProxy()))
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			// Create a new HTTP client with a custom transport
+			client := &http.Client{
+				Transport: &http.Transport{
+					Proxy: http.ProxyURL(parseProxyURL(getRandomProxy())),
+				},
+				Timeout: RequestTimeout,
+			}
+			// Perform scraping using the current IP address
+			err := scrapeData(client)
+			if err != nil {
+				log.Println("Scraping error:", err)
+			}
+
+			// Rotate IP address
+			time.Sleep(RotateIPInterval)
+			client.Transport.(*http.Transport).Proxy = http.ProxyURL(parseProxyURL(getRandomProxy()))
+
+			<-workerChan
+		}()
 	}
 }
 
