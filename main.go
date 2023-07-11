@@ -1,15 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
-	"math/rand"
-	"net/http"
-	"net/url"
 	"sync"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/valyala/fasthttp"
 )
 
 var (
@@ -41,13 +40,12 @@ func main() {
 		go func() {
 			defer wg.Done()
 
-			// Create a new HTTP client with a custom transport
-			client := &http.Client{
-				Transport: &http.Transport{
-					Proxy: http.ProxyURL(parseProxyURL(getRandomProxy())),
-				},
-				Timeout: RequestTimeout,
+			// Create a new fasthttp.Client
+			client := &fasthttp.Client{
+				ReadTimeout:  RequestTimeout,
+				WriteTimeout: RequestTimeout,
 			}
+
 			// Perform scraping using the current IP address
 			err := scrapeData(client)
 			if err != nil {
@@ -56,7 +54,6 @@ func main() {
 
 			// Rotate IP address
 			time.Sleep(RotateIPInterval)
-			client.Transport.(*http.Transport).Proxy = http.ProxyURL(parseProxyURL(getRandomProxy()))
 
 			<-workerChan
 		}()
@@ -64,16 +61,20 @@ func main() {
 }
 
 // scrapeData performs the actual scraping
-func scrapeData(client *http.Client) error {
+func scrapeData(client *fasthttp.Client) error {
 	// Make a GET request to the target website
-	response, err := client.Get("http://www.example.com")
+	url := "http://www.example.com"
+	statusCode, body, err := client.Get(nil, url)
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
+
+	if statusCode != fasthttp.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", statusCode)
+	}
 
 	// Use goquery to parse the HTML response
-	doc, err := goquery.NewDocumentFromReader(response.Body)
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -84,19 +85,4 @@ func scrapeData(client *http.Client) error {
 	})
 
 	return nil
-}
-
-// getRandomProxy returns a random proxy URL from the proxyList
-func getRandomProxy() string {
-	rand.Seed(time.Now().UnixNano())
-	return proxyList[rand.Intn(len(proxyList))]
-}
-
-// parseProxyURL parses the proxy URL string into a URL struct
-func parseProxyURL(proxyURL string) *url.URL {
-	parsedURL, err := url.Parse(proxyURL)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return parsedURL
 }
