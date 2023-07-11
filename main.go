@@ -24,6 +24,8 @@ var (
 	RequestTimeout = 10 * time.Second
 
 	NumWorkers = 5
+
+	scrapedProducts = make(map[string]struct{})
 )
 
 func main() {
@@ -84,9 +86,12 @@ func scrapeData(client *fasthttp.Client) error {
 		name := s.Find(".productItemName_3IZ3c").Text()
 		price := s.Find(".price_2j8lL").Text()
 
-		fmt.Println("Name:", name)
-		fmt.Println("Price:", price)
-		fmt.Println("========================")
+		if _, ok := scrapedProducts[name]; !ok {
+			scrapedProducts[name] = struct{}{}
+			fmt.Println("Name:", name)
+			fmt.Println("Price:", price)
+			fmt.Println("========================")
+		}
 	})
 
 	return nil
