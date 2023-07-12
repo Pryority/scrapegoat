@@ -1,4 +1,3 @@
-```
 # ScrapeGOat
 
 This is a Go program that performs web scraping to extract product names and prices from a target website. It uses the Goquery library for HTML parsing and the fasthttp library for making HTTP requests.
@@ -60,7 +59,3 @@ To extend the program to scrape additional websites or perform custom parsing, y
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
-
-```
-
-You can copy the above content and save it as `README.md` in your project's root directory. Feel free to customize it according to your specific requirements and add any additional sections or information you deem necessary.
