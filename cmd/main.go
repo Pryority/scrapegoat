@@ -2,14 +2,14 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"log"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/pryority/scrapegoat/pkg/scraper"
 	"github.com/valyala/fasthttp"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -27,8 +27,14 @@ var (
 func main() {
 	flag.Parse()
 
+	// Configure logrus
+	log.SetFormatter(&log.TextFormatter{
+		DisableColors: false,
+		FullTimestamp: true,
+	})
+
+	// Set log output to a file if provided
 	if *logFile != "" {
-		// Initialize log output to file
 		logFile, err := os.OpenFile(*logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
 			log.Fatal(err)
@@ -37,18 +43,28 @@ func main() {
 		log.SetOutput(logFile)
 	}
 
-	// Parse proxy list
-	// proxies := strings.Split(*proxyList, ",")
-
 	// Start scraping loop
 	var wg sync.WaitGroup
 	workerChan := make(chan struct{}, *numWorkers)
 
-	for {
+	websites := []scraper.Website{
+		{
+			URL:           "https://www.bestbuy.ca/en-ca/category/laptops-macbooks/20352",
+			NameSelector:  ".productItemName_3IZ3c",
+			PriceSelector: ".price_2j8lL",
+		},
+		{
+			URL:           "https://www.website2.com",
+			NameSelector:  ".name-selector",
+			PriceSelector: ".price-selector",
+		},
+	}
+
+	for _, website := range websites {
 		workerChan <- struct{}{}
 		wg.Add(1)
 
-		go func() {
+		go func(website scraper.Website) {
 			defer wg.Done()
 
 			// Create a new fasthttp.Client with custom settings
@@ -58,26 +74,17 @@ func main() {
 			}
 
 			// Perform scraping using the current IP address
-			err := scraper.ScrapeData(client)
+			err := scraper.ScrapeData(client, website.URL, website.NameSelector, website.PriceSelector)
 			if err != nil {
-				log.Println("Scraping error:", err)
+				log.Error("Scraping error:", err)
 			}
 
 			// Rotate IP address
 			time.Sleep(*rotateInterval)
 
 			<-workerChan
-		}()
+		}(website)
 	}
 
 	wg.Wait()
-}
-
-// scrapeCallback is called for each scraped item
-func scrapeCallback(name, price string) {
-	if _, ok := scrapedProducts.LoadOrStore(name, struct{}{}); !ok {
-		fmt.Println("Name:", name)
-		fmt.Println("Price:", price)
-		fmt.Println("========================")
-	}
 }
