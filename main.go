@@ -24,6 +24,8 @@ var (
 	RequestTimeout = 10 * time.Second
 
 	NumWorkers = 5
+
+	scrapedProducts = make(map[string]struct{})
 )
 
 func main() {
@@ -63,7 +65,7 @@ func main() {
 // scrapeData performs the actual scraping
 func scrapeData(client *fasthttp.Client) error {
 	// Make a GET request to the target website
-	url := "http://www.example.com"
+	url := "https://www.bestbuy.ca/en-ca/category/laptops-macbooks/20352"
 	statusCode, body, err := client.Get(nil, url)
 	if err != nil {
 		return err
@@ -80,8 +82,16 @@ func scrapeData(client *fasthttp.Client) error {
 	}
 
 	// Extract data from the parsed HTML document
-	doc.Find("h1").Each(func(i int, s *goquery.Selection) {
-		fmt.Println(s.Text())
+	doc.Find(".productLine_2N9kG").Each(func(i int, s *goquery.Selection) {
+		name := s.Find(".productItemName_3IZ3c").Text()
+		price := s.Find(".price_2j8lL").Text()
+
+		if _, ok := scrapedProducts[name]; !ok {
+			scrapedProducts[name] = struct{}{}
+			fmt.Println("Name:", name)
+			fmt.Println("Price:", price)
+			fmt.Println("========================")
+		}
 	})
 
 	return nil
