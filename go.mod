@@ -1,4 +1,4 @@
-module pryority/scrapegoat
+module github.com/pryority/scrapegoat
 
 go 1.20
 

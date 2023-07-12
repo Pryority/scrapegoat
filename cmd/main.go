@@ -1,98 +1,83 @@
 package main
 
 import (
-	"bytes"
+	"flag"
 	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 
-	"github.com/PuerkitoBio/goquery"
+	"github.com/pryority/scrapegoat/pkg/scraper"
 	"github.com/valyala/fasthttp"
 )
 
 var (
-	proxyList = []string{
-		"http://193.233.202.75:8080",
-		"http://139.59.1.14:8080",
-	}
+	// Command-line flags
+	targetURL      = flag.String("url", "https://www.bestbuy.ca/en-ca/category/laptops-macbooks/20352", "Target website URL")
+	proxyList      = flag.String("proxies", "http://193.233.202.75:8080,http://139.59.1.14:8080", "Comma-separated list of proxies")
+	rotateInterval = flag.Duration("rotate-interval", 5*time.Second, "Interval between IP rotations")
+	requestTimeout = flag.Duration("request-timeout", 10*time.Second, "Timeout for each request")
+	numWorkers     = flag.Int("num-workers", 5, "Number of concurrent workers")
+	logFile        = flag.String("log-file", "", "Path to the log file")
 
-	// RotateIPInterval defines the interval between IP rotations
-	RotateIPInterval = 5 * time.Second
-
-	// Timeout for each request
-	RequestTimeout = 10 * time.Second
-
-	NumWorkers = 5
-
-	scrapedProducts = make(map[string]struct{})
+	scrapedProducts sync.Map
 )
 
 func main() {
-	var wg sync.WaitGroup
+	flag.Parse()
 
-	workerChan := make(chan struct{}, NumWorkers)
+	if *logFile != "" {
+		// Initialize log output to file
+		logFile, err := os.OpenFile(*logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer logFile.Close()
+		log.SetOutput(logFile)
+	}
+
+	// Parse proxy list
+	// proxies := strings.Split(*proxyList, ",")
 
 	// Start scraping loop
+	var wg sync.WaitGroup
+	workerChan := make(chan struct{}, *numWorkers)
+
 	for {
 		workerChan <- struct{}{}
-
 		wg.Add(1)
 
 		go func() {
 			defer wg.Done()
 
-			// Create a new fasthttp.Client
+			// Create a new fasthttp.Client with custom settings
 			client := &fasthttp.Client{
-				ReadTimeout:  RequestTimeout,
-				WriteTimeout: RequestTimeout,
+				ReadTimeout:  *requestTimeout,
+				WriteTimeout: *requestTimeout,
 			}
 
 			// Perform scraping using the current IP address
-			err := scrapeData(client)
+			err := scraper.ScrapeData(client)
 			if err != nil {
 				log.Println("Scraping error:", err)
 			}
 
 			// Rotate IP address
-			time.Sleep(RotateIPInterval)
+			time.Sleep(*rotateInterval)
 
 			<-workerChan
 		}()
 	}
+
+	wg.Wait()
 }
 
-// scrapeData performs the actual scraping
-func scrapeData(client *fasthttp.Client) error {
-	// Make a GET request to the target website
-	url := "https://www.bestbuy.ca/en-ca/category/laptops-macbooks/20352"
-	statusCode, body, err := client.Get(nil, url)
-	if err != nil {
-		return err
+// scrapeCallback is called for each scraped item
+func scrapeCallback(name, price string) {
+	if _, ok := scrapedProducts.LoadOrStore(name, struct{}{}); !ok {
+		fmt.Println("Name:", name)
+		fmt.Println("Price:", price)
+		fmt.Println("========================")
 	}
-
-	if statusCode != fasthttp.StatusOK {
-		return fmt.Errorf("unexpected status code: %d", statusCode)
-	}
-
-	// Use goquery to parse the HTML response
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-
-	// Extract data from the parsed HTML document
-	doc.Find(".productLine_2N9kG").Each(func(i int, s *goquery.Selection) {
-		name := s.Find(".productItemName_3IZ3c").Text()
-		price := s.Find(".price_2j8lL").Text()
-
-		if _, ok := scrapedProducts[name]; !ok {
-			scrapedProducts[name] = struct{}{}
-			fmt.Println("Name:", name)
-			fmt.Println("Price:", price)
-			fmt.Println("========================")
-		}
-	})
-
-	return nil
 }
