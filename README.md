@@ -11,13 +11,13 @@ This is a Go program that performs web scraping to extract product names and pri
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/your-username/your-repo.git
+   git clone https://github.com/pryority/scrapegoat.git
    ```
 
 2. Navigate to the project directory:
 
    ```bash
-   cd your-repo
+   cd scrapegoat
    ```
 
 3. Build the program:
@@ -29,7 +29,7 @@ This is a Go program that performs web scraping to extract product names and pri
 4. Run the program:
 
    ```bash
-   ./your-repo
+   ./scrapegoat
    ```
 
 ## Configuration
